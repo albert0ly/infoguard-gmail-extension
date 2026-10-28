@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "InfoGuard for Gmail",
+  "version": "0.1.0",
+  "description": "Make Secure for Gmail compose: mobile-number lookup and secure-send marker.",
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "permissions": ["storage", "identity"],
+  "host_permissions": ["https://mail.google.com/*"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["https://mail.google.com/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "action": { "default_title": "InfoGuard settings" }
+}

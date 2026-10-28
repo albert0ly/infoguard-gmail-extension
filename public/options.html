@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>InfoGuard settings</title>
+<style>
+  body { font: 14px system-ui, sans-serif; max-width: 640px; margin: 32px auto; color: #202124; }
+  label { display: block; margin-top: 16px; font-weight: 600; }
+  input, select { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; font: inherit; }
+  small { color: #5f6368; font-weight: 400; display: block; margin-top: 2px; }
+  button { margin-top: 24px; padding: 8px 18px; font: inherit; background: #0b5fff; color: #fff; border: 0; border-radius: 4px; cursor: pointer; }
+  #status { margin-left: 12px; }
+  code { background: #f1f3f4; padding: 1px 4px; }
+</style>
+</head>
+<body>
+  <h2>InfoGuard for Gmail - settings</h2>
+
+  <label>API mode
+    <select id="apiMode">
+      <option value="mock">mock (numbers stored locally in this browser)</option>
+      <option value="live">live (REST server)</option>
+    </select>
+  </label>
+
+  <label>API base URL
+    <input id="apiBaseUrl" placeholder="https://api.example.com" />
+    <small>Live mode only. Endpoints: POST /api/phones/lookup and POST /api/phones/save. Saving asks Chrome for permission to call this origin.</small>
+  </label>
+
+  <label>Google OAuth client ID (Web application)
+    <input id="oauthClientId" placeholder="xxxx.apps.googleusercontent.com" />
+    <small>Live mode only. Authorized redirect URI must be: <code id="redirect"></code></small>
+  </label>
+
+  <label>Marker text
+    <input id="marker" />
+    <small>Appended to the body when a mail is made secure; the Gmail routing rule matches it.</small>
+  </label>
+
+  <label>Top-bar anchor selector (optional)
+    <input id="anchorSelector" placeholder="CSS selector of the element the Compose Secure button is inserted before" />
+    <small>Only needed if the automatic placement is wrong after a Gmail UI change.</small>
+  </label>
+
+  <button id="save">Save</button><span id="status"></span>
+  <script src="options.js"></script>
+</body>
+</html>
