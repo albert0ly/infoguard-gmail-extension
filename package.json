@@ -1,13 +1,17 @@
 {
   "name": "infoguard-gmail-extension",
-  "version": "0.1.0",
+  "version": "0.1.13",
   "private": true,
   "description": "InfoGuard for Gmail - Chrome extension (Manifest V3, TypeScript)",
   "scripts": {
+    "pretypecheck": "tsx scripts/generate-version.ts",
     "typecheck": "tsc --noEmit",
+    "prebuild": "tsx scripts/bump-version.ts && tsx scripts/generate-version.ts",
     "build": "tsx scripts/build.ts",
+    "prewatch": "tsx scripts/generate-version.ts",
     "watch": "tsx scripts/build.ts --watch",
-    "zip": "npm run build && tsx scripts/zip.ts"
+    "zip": "npm run build && tsx scripts/zip.ts",
+    "version:bump": "tsx scripts/bump-version.ts"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.280",
