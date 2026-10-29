@@ -12,6 +12,106 @@ export function getBody(compose: HTMLElement): HTMLElement | null {
   return compose.querySelector<HTMLElement>(SEL.composeBody);
 }
 
+function clickLikeUser(el: HTMLElement) {
+  for (const type of ['mousedown', 'mouseup', 'click']) {
+    el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+  }
+}
+
+function getSendButton(compose: HTMLElement): HTMLElement | null {
+  return compose.querySelector<HTMLElement>(SEL.composeSendButton);
+}
+
+function getSendOptionsButton(compose: HTMLElement): HTMLElement | null {
+  return compose.querySelector<HTMLElement>(SEL.composeSendOptionsButton);
+}
+
+function getLabelNode(button: HTMLElement): HTMLElement {
+  const nodes = Array.from(button.querySelectorAll<HTMLElement>('span, div'));
+  const textNode = nodes.find((n) => (n.textContent || '').trim().length > 0);
+  return textNode ?? button;
+}
+
+export function setComposeSecureSendVisual(compose: HTMLElement): void {
+  const button = getSendButton(compose);
+  const options = getSendOptionsButton(compose);
+  if (!button && !options) return;
+
+  if (button) {
+    if (!button.dataset.infoguardOrigLabel) {
+      button.dataset.infoguardOrigLabel = (button.getAttribute('aria-label') || '').trim();
+    }
+    if (!button.dataset.infoguardOrigStyle) {
+      button.dataset.infoguardOrigStyle = button.getAttribute('style') || '';
+    }
+
+    const label = getLabelNode(button);
+    if (!label.dataset.infoguardOrigText) {
+      label.dataset.infoguardOrigText = (label.textContent || '').trim();
+    }
+
+    button.style.background = '#188038';
+    button.style.borderColor = '#188038';
+    button.style.color = '#ffffff';
+    button.setAttribute('aria-label', 'Send Secure');
+    label.textContent = 'Send Secure';
+  }
+
+  if (options) {
+    if (!options.dataset.infoguardOrigStyle) {
+      options.dataset.infoguardOrigStyle = options.getAttribute('style') || '';
+    }
+    options.style.background = '#188038';
+    options.style.borderColor = '#188038';
+    options.style.color = '#ffffff';
+  }
+}
+
+export function clearComposeSecureSendVisual(compose: HTMLElement): void {
+  const button = getSendButton(compose);
+  if (button) {
+    const label = getLabelNode(button);
+    const origText = label.dataset.infoguardOrigText;
+    if (origText !== undefined) label.textContent = origText;
+
+    const origLabel = button.dataset.infoguardOrigLabel;
+    if (origLabel !== undefined) {
+      if (origLabel) button.setAttribute('aria-label', origLabel);
+      else button.removeAttribute('aria-label');
+    }
+
+    const origStyle = button.dataset.infoguardOrigStyle;
+    if (origStyle !== undefined) {
+      if (origStyle) button.setAttribute('style', origStyle);
+      else button.removeAttribute('style');
+    } else {
+      button.style.removeProperty('background');
+      button.style.removeProperty('border-color');
+      button.style.removeProperty('color');
+    }
+  }
+
+  const options = getSendOptionsButton(compose);
+  if (options) {
+    const origStyle = options.dataset.infoguardOrigStyle;
+    if (origStyle !== undefined) {
+      if (origStyle) options.setAttribute('style', origStyle);
+      else options.removeAttribute('style');
+    } else {
+      options.style.removeProperty('background');
+      options.style.removeProperty('border-color');
+      options.style.removeProperty('color');
+    }
+  }
+}
+
+export function sendCompose(compose: HTMLElement): boolean {
+  const button = getSendButton(compose);
+  if (!button) return false;
+  clickLikeUser(button);
+  return true;
+}
+
 /** Unique, lower-cased recipient e-mails (To + Cc + Bcc) read from the recipient chips. */
 export function getRecipients(compose: HTMLElement): string[] {
   const found = new Set<string>();

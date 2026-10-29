@@ -1,6 +1,16 @@
 import type { PhoneItem, Req, Res } from '../shared/types';
+import { EXTENSION_BUILD_ID, EXTENSION_VERSION } from '../shared/generated-version';
 import { normalizeMobile } from '../shared/validation';
-import { addMarker, getBody, getRecipients, hasMarker, removeMarker } from './dom';
+import {
+  addMarker,
+  clearComposeSecureSendVisual,
+  getBody,
+  getRecipients,
+  hasMarker,
+  removeMarker,
+  sendCompose,
+  setComposeSecureSendVisual
+} from './dom';
 import { settings } from './state';
 
 function send<T>(req: Req): Promise<T> {
@@ -35,9 +45,11 @@ const CSS = `
   .status { margin: 8px 0; min-height: 16px; }
   .status.err { color: #d93025; }
   .status.ok { color: #188038; }
+  .meta { margin-top: 8px; color: #5f6368; font-size: 11px; }
   .btns { display: flex; gap: 6px; flex-wrap: wrap; }
   button { padding: 6px 12px; border-radius: 4px; border: 1px solid #dadce0; background: #fff; cursor: pointer; font-size: 13px; }
   button.primary { background: #0b5fff; border-color: #0b5fff; color: #fff; }
+  button.secure { background: #188038; border-color: #188038; color: #fff; }
   button:disabled { opacity: .55; cursor: default; }
 `;
 
@@ -58,6 +70,8 @@ export class ComposeUI {
   private bad = new Set<string>();
   private status: { text: string; kind: Kind } = { text: '', kind: '' };
   private pillSecure: boolean | null = null;
+  private sendSecureEnabled = false;
+  private secureRecipientsSig = '';
 
   constructor(private compose: HTMLElement) {
     const style = document.createElement('style');
@@ -72,13 +86,15 @@ export class ComposeUI {
   }
 
   destroy() {
+    clearComposeSecureSendVisual(this.compose);
     this.host.remove();
   }
 
   openPanel() {
     this.open = true;
-    this.lastSig = '';
+    this.lastSig = '__open__';
     this.status = { text: '', kind: '' };
+    this.render();
     this.update();
   }
 
@@ -94,9 +110,27 @@ export class ComposeUI {
     this.host.style.display = hidden ? 'none' : '';
     if (hidden) return;
 
-    const secure = hasMarker(this.compose, settings.marker);
+    const currentSig = getRecipients(this.compose).join(',');
+
+    // If recipients changed after a successful secure action, clear marker/state to prevent stale secure routing.
+    if (hasMarker(this.compose, settings.marker) && this.secureRecipientsSig && currentSig !== this.secureRecipientsSig) {
+      removeMarker(this.compose, settings.marker);
+      this.secureRecipientsSig = '';
+      this.sendSecureEnabled = false;
+      if (this.open) this.setStatus('Recipients changed. Click Make Secure again.', '');
+    }
+
+    let secure = hasMarker(this.compose, settings.marker);
+    if (secure && !this.secureRecipientsSig) {
+      this.secureRecipientsSig = currentSig;
+      this.sendSecureEnabled = true;
+    }
+
+    if (secure) setComposeSecureSendVisual(this.compose);
+    else clearComposeSecureSendVisual(this.compose);
     if (secure !== this.pillSecure) {
       this.pillSecure = secure;
+      this.sendSecureEnabled = secure;
       this.pill.classList.toggle('secure', secure);
       this.pill.textContent = secure ? '\u{1F512} Secure \u2713' : '\u{1F512} Make Secure';
       if (this.open) this.render();
@@ -171,6 +205,12 @@ export class ComposeUI {
     return this.values.get(email) ?? this.stored.get(email) ?? '';
   }
 
+  private hasValidPhonesForRecipients(): boolean {
+    const emails = getRecipients(this.compose);
+    if (!emails.length) return false;
+    return emails.every((email) => normalizeMobile(this.currentValue(email)) !== null);
+  }
+
   private render() {
     const p = this.panel;
     p.textContent = '';
@@ -215,16 +255,33 @@ export class ComposeUI {
 
     const make = document.createElement('button');
     make.className = 'primary';
-    make.textContent = secure ? 'Update numbers' : 'Make Secure';
+    make.textContent = 'Make Secure';
     make.disabled = this.busy || !this.emails.length;
     make.addEventListener('click', () => void this.makeSecure());
     btns.append(make);
+
+    if (secure) {
+      const send = document.createElement('button');
+      send.className = 'secure';
+      send.textContent = 'Send Secure';
+      send.disabled = this.busy || !this.sendSecureEnabled || !this.hasValidPhonesForRecipients();
+      send.addEventListener('click', () => void this.makeSecure(true));
+      btns.append(send);
+    } else {
+      const send = document.createElement('button');
+      send.className = 'secure';
+      send.textContent = 'Send Secure';
+      send.disabled = true;
+      btns.append(send);
+    }
 
     if (secure) {
       const rm = document.createElement('button');
       rm.textContent = 'Remove security';
       rm.addEventListener('click', () => {
         removeMarker(this.compose, settings.marker);
+        this.secureRecipientsSig = '';
+        this.sendSecureEnabled = false;
         this.setStatus('Security removed.', '');
         this.update();
       });
@@ -240,13 +297,24 @@ export class ComposeUI {
     });
     btns.append(rf);
     p.append(btns);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `Version ${EXTENSION_VERSION} · Build ${EXTENSION_BUILD_ID}`;
+    p.append(meta);
   }
 
-  private async makeSecure() {
-    if (this.busy) return;
+  private async makeSecure(sendAfter = false): Promise<boolean> {
+    if (this.busy) return false;
     this.emails = getRecipients(this.compose);
-    if (!this.emails.length) return this.setStatus('Add at least one recipient.', 'err');
-    if (!getBody(this.compose)) return this.setStatus('Compose body not found.', 'err');
+    if (!this.emails.length) {
+      this.setStatus('Add at least one recipient.', 'err');
+      return false;
+    }
+    if (!getBody(this.compose)) {
+      this.setStatus('Compose body not found.', 'err');
+      return false;
+    }
 
     // Validate every recipient's number.
     const normalized = new Map<string, string>();
@@ -258,10 +326,11 @@ export class ComposeUI {
     }
     if (this.bad.size) {
       this.render();
-      return this.setStatus(
+      this.setStatus(
         'Enter a valid international mobile (e.g. +972501234567) for: ' + Array.from(this.bad).join(', '),
         'err'
       );
+      return false;
     }
 
     // Save only added or updated numbers.
@@ -280,14 +349,27 @@ export class ComposeUI {
         }
       }
       addMarker(this.compose, settings.marker);
+      this.secureRecipientsSig = this.emails.join(',');
+      this.sendSecureEnabled = true;
       this.busy = false;
       this.render();
-      this.setStatus('Secure. Send the mail as usual.', 'ok');
+      if (sendAfter) {
+        if (!sendCompose(this.compose)) {
+          this.setStatus('Secure saved, but Gmail Send button was not found.', 'err');
+          this.update();
+          return false;
+        }
+        this.setStatus('Sending secure email...', 'ok');
+      } else {
+        this.setStatus('Secure. You can now send with Send Secure.', 'ok');
+      }
       this.update();
+      return true;
     } catch (e) {
       this.busy = false;
       this.render();
       this.setStatus('Failed: ' + (e as Error).message, 'err');
+      return false;
     }
   }
 }
