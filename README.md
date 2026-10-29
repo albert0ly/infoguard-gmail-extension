@@ -3,25 +3,37 @@
 Gmail equivalent of the InfoGuard Outlook add-in, as a Manifest V3 Chrome extension (TypeScript, esbuild).
 
 ## What it does
+
 1. **Compose Secure** icon on Gmail's top bar (left of Support / Settings / Google apps / Account). Click = opens Gmail's Compose and opens the Make Secure panel on it.
 2. Every compose window gets a pill above it: **Make Secure** (blue) / **Secure ✓** (green). The green pill is the visual indication, visible with the panel closed.
-3. Panel: reads To/Cc/Bcc chips, looks up stored mobile numbers (REST), shows one input per e-mail, you fill the missing ones. It re-syncs when recipients change.
-4. **Make Secure**: validates every number (international format `+9725...`), saves only added/changed numbers (REST), appends the marker `[[INFOGUARD-SECURE:1]]` to the body (never twice). **Remove security** deletes it.
-5. You send normally. A Gmail routing rule matches the marker and routes the mail to your SMTP server (see below).
+3. After security is applied, Gmail's native send button is relabeled to **Send Secure** and styled green for that compose window.
+4. Panel: reads To/Cc/Bcc chips, looks up stored mobile numbers (REST), shows one input per e-mail, you fill the missing ones. It re-syncs when recipients change.
+5. **Make Secure**: validates every number (international format `+9725...`), saves only added/changed numbers (REST), appends the marker `[[INFOGUARD-SECURE:1]]` to the body (never twice). **Remove security** deletes it.
+6. Panel includes a green **Send Secure** action that is disabled until **Make Secure** succeeds; then it triggers Gmail send.
+7. A Gmail routing rule matches the marker and routes the mail to your SMTP server (see below).
 
 Unlike the add-on, the extension can read and delete the marker, so the state is always accurate.
 
 ## Setup (VS Code)
+
 ```
 npm install
 npm run build          # output in dist/
 ```
+
 Chrome: `chrome://extensions` > Developer mode > **Load unpacked** > select the `dist` folder.
 Reload the Gmail tab. After code changes: `npm run build` (or `npm run watch`), click reload on the extension, refresh Gmail.
 
 For a demo on another computer without npm: `npm run zip` creates `infoguard-extension-dist.zip`; unzip there and Load unpacked.
 
+Versioning workflow (similar to the add-on):
+
+- `npm run build` increments patch version in `package.json`, writes local `version.txt`, and regenerates `src/shared/generated-version.ts` with `Version` + UTC `Build` ID.
+- `npm run version:bump` can also be run manually when you want to bump without building.
+- `version.txt` is local-only and ignored; `version.txt.sample` documents the format.
+
 ## Settings (extension Options page; click the extension icon)
+
 - **API mode**: `mock` (default; numbers stored in this browser, no server needed) or `live`.
 - **API base URL**: live mode. Endpoints:
   - `POST /api/phones/lookup` `{ "emails": ["a@x.com"] }` -> `{ "items": [ { "email": "a@x.com", "mobile": "+972..." | null } ] }`
@@ -29,8 +41,10 @@ For a demo on another computer without npm: `npm run zip` creates `infoguard-ext
   - Header `Authorization: Bearer <Google ID token>`
 - **OAuth client ID**: live mode. Google Cloud Console > Credentials > OAuth client ID, type **Web application**; Authorized redirect URI = the value shown on the Options page (`https://<extension-id>.chromiumapp.org/`). The ID changes if the unpacked folder path changes.
 - **Marker text**, **Top-bar anchor selector** (only if auto placement breaks).
+- Version and build ID are displayed at the bottom of the options page and in the compose security panel.
 
 Server token validation (same as the add-on design):
+
 ```csharp
 var payload = await GoogleJsonWebSignature.ValidateAsync(token, new GoogleJsonWebSignature.ValidationSettings
 {
@@ -40,9 +54,11 @@ var payload = await GoogleJsonWebSignature.ValidateAsync(token, new GoogleJsonWe
 ```
 
 ## Gmail routing rule (unchanged)
+
 Admin console > Apps > Google Workspace > Gmail > Hosts: add the SMTP server. Compliance > Content compliance: outbound, Advanced content match on the marker text, action Modify message > Change route to that host. The server strips the marker and delivers onward without re-matching the rule.
 
 ## Structure
+
 ```
 public/manifest.json      MV3 manifest, icons, options.html
 src/background.ts         REST calls, mock store, Google ID token (launchWebAuthFlow)
@@ -55,7 +71,9 @@ src/content/selectors.ts  ALL Gmail DOM selectors - fix here when Gmail changes
 ```
 
 ## Not verified against live Gmail (check first)
+
 The project typechecks and builds. It has NOT been run against Gmail. Everything below depends on Gmail's undocumented DOM:
+
 - Top-bar placement (`selectors.ts`: header `header[role="banner"]`, account button found by `aria-label` containing `@`). If it is not placed correctly it falls back to a floating button at top-right; use the anchor selector setting to fix.
 - Recipient chips (`data-hovercard-id` / `email`) and the From-field exclusion.
 - Compose window detection (`div[role="dialog"]` containing `div[g_editable="true"]`) and body editing; pop-out windows and inline replies are not handled.

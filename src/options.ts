@@ -1,4 +1,5 @@
 import { DEFAULTS, getSettings, saveSettings, type Settings } from './shared/settings';
+import { EXTENSION_BUILD_ID, EXTENSION_VERSION } from './shared/generated-version';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -10,6 +11,7 @@ async function load() {
   $<HTMLInputElement>('marker').value = s.marker;
   $<HTMLInputElement>('anchorSelector').value = s.anchorSelector;
   $('redirect').textContent = chrome.identity.getRedirectURL();
+  $('versionMeta').textContent = `Version ${EXTENSION_VERSION} · Build ${EXTENSION_BUILD_ID}`;
 }
 
 $('save').addEventListener('click', async () => {
