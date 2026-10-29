@@ -4,22 +4,82 @@ import { settings } from './state';
 const BTN_ID = 'infoguard-compose-secure';
 const STYLE_ID = 'infoguard-topbar-style';
 
-const ICON = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-  <path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-  <rect x="2" y="2" width="9" height="7" rx="1.5" fill="#0b5fff" stroke="#0b5fff"/>
-  <path d="M4.2 2V1.2a2.3 2.3 0 0 1 4.6 0V2" stroke="#0b5fff"/>
-  <circle cx="6.5" cy="5.5" r="1" fill="#fff" stroke="none"/>
-</svg>`;
+const ICON_SRC =
+  'https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/mail_lock/fill1/48px.svg';
+
+function findNativeComposeButton(): HTMLElement | null {
+  const compose = document.querySelector<HTMLElement>(SEL.composeButton);
+  if (!compose) return null;
+  return compose.closest<HTMLElement>('[role="button"],button') ?? compose;
+}
+
+function syncWithNativeComposeStyle(btn: HTMLElement): void {
+  const native = findNativeComposeButton();
+  if (!native) return;
+
+  const s = getComputedStyle(native);
+  btn.style.backgroundColor = s.backgroundColor;
+  btn.style.color = s.color;
+  btn.style.borderRadius = s.borderRadius;
+  btn.style.boxShadow = s.boxShadow;
+  btn.style.fontFamily = s.fontFamily;
+  btn.style.fontSize = s.fontSize;
+  btn.style.fontWeight = s.fontWeight;
+  btn.style.lineHeight = s.lineHeight;
+  btn.style.borderStyle = s.borderStyle;
+  btn.style.borderWidth = s.borderWidth;
+  btn.style.borderColor = s.borderColor;
+  btn.style.height = s.height;
+  btn.style.minHeight = s.minHeight;
+}
 
 function injectStyle() {
   if (document.getElementById(STYLE_ID)) return;
   const st = document.createElement('style');
   st.id = STYLE_ID;
   st.textContent = `
-    #${BTN_ID} { display:inline-flex; align-items:center; justify-content:center; align-self:center; flex:0 0 auto;
-      width:40px; height:40px; margin:0 4px; border-radius:50%; cursor:pointer; color:inherit; opacity:.8; user-select:none; }
-    #${BTN_ID}:hover { background:rgba(128,128,128,.22); opacity:1; }
-    #${BTN_ID}.ig-floating { position:fixed; top:10px; right:240px; z-index:2147483000; background:rgba(128,128,128,.12); }
+    #${BTN_ID} {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      align-self: center;
+      flex: 0 0 auto;
+      min-width: 150px;
+      height: 48px;
+      margin: 0 10px 0 4px;
+      padding: 0 18px 0 16px;
+      border-radius: 16px;
+      border: 1px solid #c6dafc;
+      background: #c2e7ff;
+      color: #001d35;
+      font: 500 14px/20px 'Google Sans', Roboto, Arial, sans-serif;
+      letter-spacing: .01em;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15);
+      transition: filter .15s ease;
+    }
+    #${BTN_ID}:hover {
+      filter: brightness(.97);
+    }
+    #${BTN_ID}:active {
+      filter: brightness(.94);
+    }
+    #${BTN_ID} .ig-icon {
+      width: 20px;
+      height: 20px;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
+    #${BTN_ID} .ig-label {
+      white-space: nowrap;
+    }
+    #${BTN_ID}.ig-floating {
+      position: fixed;
+      top: 14px;
+      right: 240px;
+      z-index: 2147483000;
+    }
   `;
   document.head.appendChild(st);
 }
@@ -60,6 +120,7 @@ export function ensureTopbarButton(onClick: () => void): void {
   let btn = document.getElementById(BTN_ID);
 
   if (btn?.isConnected) {
+    syncWithNativeComposeStyle(btn);
     // If the automatic placement ended up outside the top bar, switch to the floating fallback.
     const r = btn.getBoundingClientRect();
     if (!btn.classList.contains('ig-floating') && (r.width === 0 || r.top > 90)) {
@@ -75,7 +136,18 @@ export function ensureTopbarButton(onClick: () => void): void {
   btn.setAttribute('tabindex', '0');
   btn.setAttribute('aria-label', 'Compose Secure');
   btn.title = 'Compose Secure';
-  btn.innerHTML = ICON;
+  const icon = document.createElement('img');
+  icon.className = 'ig-icon';
+  icon.src = ICON_SRC;
+  icon.alt = '';
+  icon.setAttribute('aria-hidden', 'true');
+
+  const label = document.createElement('span');
+  label.className = 'ig-label';
+  label.textContent = 'Compose Secure';
+
+  btn.append(icon, label);
+  syncWithNativeComposeStyle(btn);
   btn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
